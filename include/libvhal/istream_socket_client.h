@@ -26,12 +26,10 @@
 #ifndef ISTREAM_SOCKET_CLIENT_H
 #define ISTREAM_SOCKET_CLIENT_H
 
+#include "libvhal_common.h"
 #include <cstdint>
 #include <sys/types.h>
 #include <tuple>
-
-#include<iostream>
-using namespace std;
 
 namespace vhal {
 namespace client {
@@ -39,21 +37,6 @@ namespace client {
 /**
  * Below are the return types used by derived class member functions.
  */
-
-/**
- * @brief IOResult
- *          { >=0, "" } on Success
- *          see function description for ssize_t value interpretation.
- *          {errno, "error msg"} on Failure
- */
-using IOResult = std::tuple<ssize_t, std::string>;
-
-/**
- * @brief ConnectionResult
- *          { True, "" } on Success
- *          { False, "error msg"} on Failure
- */
-using ConnectionResult = std::tuple<bool, std::string>;
 
 /**
  * @brief Interface for Stream oriented (connection-oriented) sockets, which
@@ -123,30 +106,6 @@ public:
      * @brief Closes socket connection.
      */
     virtual void Close() = 0;
-    
-    
-    /**
-     * @brief Closes socket connection.
-     */
-    virtual void Reset()
-    {
-	    cout<<" istream socket reset"<<"\n";
-    }
-    
-    /**
-     * @brief Closes socket connection.
-     */
-    virtual bool NeedConnectionReset()
-    {
-    }
-    
-    
-    /**
-     * @brief Closes socket connection.
-     */
-    virtual void ClearReset()
-    {
-    }
 };
 } // namespace client
 } // namespace vhal

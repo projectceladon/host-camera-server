@@ -68,20 +68,6 @@ VsockStreamSocketClient::Close()
 {
     impl_->Close();
 }
-void VsockStreamSocketClient::Reset()
-{
-    impl_->Reset();
-}
-
-bool VsockStreamSocketClient::NeedConnectionReset()
-{
-    return impl_->NeedConnectionReset();
-}
-
-void VsockStreamSocketClient::ClearReset()
-{
-    impl_->ClearReset();
-}
 
 } // namespace client
 } // namespace vhal

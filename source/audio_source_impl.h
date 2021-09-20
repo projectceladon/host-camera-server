@@ -1,13 +1,15 @@
-#ifndef VIDEO_SINK_IMPL_H
-#define VIDEO_SINK_IMPL_H
+#ifndef AUDIO_SOURCE_IMPL_H
+#define AUDIO_SOURCE_IMPL_H
+
 /**
- * @file video_sink_impl.h
- * @author Shakthi Prashanth M (shakthi.prashanth.m@intel.com)
+ * @file audio_source_impl.h
+ * @author  Nitisha Tomar (nitisha.tomar@intel.com)
  * @brief
- * @version 1.0
- * @date 2021-04-27
+ * @version 0.1
+ * @date 2021-07-27
  *
  * Copyright (c) 2021 Intel Corporation
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,8 +23,9 @@
  * limitations under the License.
  *
  */
+
 #include "istream_socket_client.h"
-#include "video_sink.h"
+#include "audio_source.h"
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -44,8 +47,9 @@ using namespace chrono_literals;
 
 namespace vhal {
 namespace client {
+namespace audio {
 
-class VideoSink::Impl
+class AudioSource::Impl
 {
 public:
     Impl(unique_ptr<IStreamSocketClient> socket_client)
@@ -54,17 +58,17 @@ public:
         vhal_talker_thread_ = thread([this]() {
             while (should_continue_) {
                 if (not socket_client_->Connected()) {
-                    if (auto [connected, error_msg] = socket_client_->Connect();
-                        !connected) {
-                        cout << "VideoSink Failed to connect to VHal: "
+                    auto [connected, error_msg] = socket_client_->Connect();
+                    if (!connected) {
+                        cout << "AudioSource Failed to connect to VHal: "
                              << error_msg
                              << ". Retry after 3ms...\n";
-                        this_thread::sleep_for(33ms);
+                        this_thread::sleep_for(3ms);
                         continue;
                     }
                 }
                 // connected ...
-                cout << " Connected to Camera VHal!\n";
+                cout << "Connected to Audio VHAL (source)!\n";
 
                 struct pollfd fds[1];
                 const int     timeout_ms = 1 * 1000; // 1 sec timeout
@@ -83,16 +87,15 @@ public:
                         continue;
                     }
                     if (fds[0].revents & POLLIN) {
-                        cout << "Camera VHal has some message for us!\n";
 
-                        VideoSink::CtrlMessage ctrl_msg;
+                        CtrlMessage ctrl_msg;
 
-                        if (auto [received, recv_err_msg] =
-                              socket_client_->Recv(
+                        auto [received, recv_err_msg] =
+                            socket_client_->Recv(
                                 reinterpret_cast<uint8_t*>(&ctrl_msg),
                                 sizeof(ctrl_msg));
-                            received != sizeof(VideoSink::CtrlMessage)) {
-                            cout << "Failed to read message from VideoSink: "
+                        if (received != sizeof(CtrlMessage)) {
+                            cout << "Failed to read message from AudioSource: "
                                  << recv_err_msg
                                  << ", going to disconnect and reconnect.\n";
                             socket_client_->Close();
@@ -102,13 +105,13 @@ public:
                         callback_(cref(ctrl_msg));
                     } else {
                         if (fds[0].revents & (POLLERR|POLLHUP)) {
-                            cout << "VideoSink Poll Fail event: "
+                            cout << "AudioSource Poll Fail event: "
                                 << fds[0].revents
                                 << ", reconnect\n";
                             socket_client_->Close();
                             break;
                         }
-                        cout << "VideoSink : Poll revents " << fds[0].revents << "\n";
+                        cout << "AudioSource : Poll revents " << fds[0].revents << "\n";
                     }
                 } while (should_continue_);
             }
@@ -121,60 +124,30 @@ public:
         vhal_talker_thread_.join();
     }
 
-    bool RegisterCallback(CameraCallback callback)
+    bool RegisterCallback(AudioCallback callback)
     {
         callback_ = move(callback);
         return true;
     }
 
-    IOResult SendDataPacket(const uint8_t* packet, size_t size)
+    IOResult ReadDataPacket(uint8_t* buf, size_t len)
     {
-        std::string result_error_msg = "";
-
-        std::tuple<ssize_t, std::string> response;
-        // Write payload size
-        response = socket_client_->Send((uint8_t*)&size, sizeof(size));
-        if (get<0>(response) == -1) {
-                get<1>(response) = "Error in writing payload size to Camera VHal: "
-                  + get<1>(response);
-                return response;
-            }
-        // Write payload
-        response = socket_client_->Send(packet, size);
-        if (get<0>(response) == -1) {
-                get<1>(response) = "Error in writing payload to Camera VHal: "
-                  + get<1>(response);
-                return response;
-            }
-        // success
-        return response;
-    }
-
-    IOResult SendRawPacket(const uint8_t* packet, size_t size)
-    {
-        std::string result_error_msg = "";
-
-      	std::tuple<ssize_t, std::string> response;
-
-        // Write payload
-        response = socket_client_->Send(packet, size);
-        if (get<0>(response) == -1) {
-                get<1>(response) = "Error in writing payload to Camera VHal: "
-                  + get<1>(response);
-                return response;
-            }
-        // success
-        return response;
+        auto [size, error_msg] = socket_client_->Recv(buf,len);
+        if (size <= 0) {
+            return { -1, error_msg };
+        }
+        return { size, "" };
     }
 
 private:
-    CameraCallback                  callback_ = nullptr;
+    AudioCallback                   callback_ = nullptr;
     unique_ptr<IStreamSocketClient> socket_client_;
     thread                          vhal_talker_thread_;
     atomic<bool>                    should_continue_ = true;
 };
 
+} // namespace audio
 } // namespace client
 } // namespace vhal
 
-#endif /* VHAL_VIDEO_SINK_IMPL_H */
+#endif /* AUDIO_SOURCE_IMPL_H */
