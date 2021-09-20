@@ -182,10 +182,6 @@ public:
      */
     IOResult SendRawPacket(const uint8_t* packet, size_t size);
 
-    bool Connected();
-    bool NeedConnectionReset();
-    void ClearReset();
-
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;

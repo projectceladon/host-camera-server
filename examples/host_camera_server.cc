@@ -90,8 +90,7 @@ void get_all_dev_nodes()
             cout <<"cam_info: Can't get capabilities\n";
         else {
 		cout << "card "<<video_cap.card<<"devId " <<devId<<"\n";
-	    //if((!strcmp((const char*)video_cap.driver, "v4l2 loopback")) && (!strcmp((const char*)video_cap.card, "normal")))
-	   if((!strcmp((const char*)video_cap.driver, "v4l2 loopback")))
+	    if((!strcmp((const char*)video_cap.driver, "v4l2 loopback")) && (!strcmp((const char*)video_cap.card, "normal")))
 	        strcpy(device_index, dev_name);
         }
         close(fd);
@@ -290,8 +289,8 @@ int main(int argc, char** argv)
 	          cout << "Received Open command from Camera VHal\n";
                   stop = false;
                   for(int count = 0; count < BUF_COUNT; count++)
-	    buf_list[count] = (unsigned char*)calloc(1, inbuf_size);
-            open_camera();
+                      buf_list[count] = (unsigned char*)calloc(1, inbuf_size);
+                  open_camera();
 
                   file_src_thread = thread([&stop,
                                             &video_sink,
@@ -310,24 +309,17 @@ int main(int argc, char** argv)
                               sent < 0) {
                               cout <<"closing camera as packet send failed: "
                                 << error_msg << "\n";
-              		stop = true;
-              this_thread::sleep_for(100ms);
-                for(int count = 0; count < BUF_COUNT; count++)
-                    free(buf_list[count]);
+     		              stop = true;
+                              this_thread::sleep_for(100ms);
+                              for(int count = 0; count < BUF_COUNT; count++)
+                                  free(buf_list[count]);
 
-                  cout << "Received Close command from Camera VHal\n";
-		  avformat_close_input(&stream_ctx->ifmt_ctx);
-          avformat_close_input(&stream_ctx->ofmt_ctx);
-          free(stream_ctx);
-          stream_ctx = NULL;
-                  
-                  //file_src_thread.join();
+                              cout << "Received Close command from Camera VHal\n";
+                              avformat_close_input(&stream_ctx->ifmt_ctx);
+                              avformat_close_input(&stream_ctx->ofmt_ctx);
+                              free(stream_ctx);
+                              stream_ctx = NULL;
                           }
-//			  if(buf_count %100)
-//				  cout << " sending camera frame success"<<"\n";
-//			  if(temp < 10)
-//				  dumpFrame(buf_list[buf_count % BUF_COUNT]);
-                          // sleep for 33ms to maintain 30 fps
                           buf_count++;
                           this_thread::sleep_for(33ms);
 			  av_packet_unref(pkt);
@@ -339,16 +331,16 @@ int main(int argc, char** argv)
                   break;
 
               case VideoSink::Command::kClose:
-              stop = true;
-              this_thread::sleep_for(100ms);
-                for(int count = 0; count < BUF_COUNT; count++)
-                    free(buf_list[count]);
+                  stop = true;
+                  this_thread::sleep_for(100ms);
+                  for(int count = 0; count < BUF_COUNT; count++)
+                      free(buf_list[count]);
 
                   cout << "Received Close command from Camera VHal\n";
 		  avformat_close_input(&stream_ctx->ifmt_ctx);
-          avformat_close_input(&stream_ctx->ofmt_ctx);
-          free(stream_ctx);
-          stream_ctx = NULL;
+                  avformat_close_input(&stream_ctx->ofmt_ctx);
+                  free(stream_ctx);
+                  stream_ctx = NULL;
                   
                   file_src_thread.join();
                   break;

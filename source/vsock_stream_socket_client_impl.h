@@ -50,15 +50,10 @@ class VsockStreamSocketClient::Impl
 public:
     Impl(const int android_vm_cid)
     {
-	this->android_vm_cid = android_vm_cid;
         server_.svm_cid = android_vm_cid;
         server_.svm_family = AF_VSOCK;
         server_.svm_port = DEFAULT_PORT_CAMERA;
 
-        fd_ = ::socket(AF_VSOCK, SOCK_STREAM, 0);
-        if (fd_ < 0) {
-            throw std::system_error(errno, std::system_category());
-        }
 
     }
     ~Impl() { Close(); }
@@ -67,25 +62,18 @@ public:
     {
         std::string error_msg = "";
         std::cout << "cid " << server_.svm_cid << " port " << server_.svm_port;
+        if (fd_ >= 0) {
+            Close();
+        }
+        fd_ = ::socket(AF_VSOCK, SOCK_STREAM, 0);
+        if (fd_ < 0) {
+            throw std::system_error(errno, std::system_category());
+        }
         connected_ = ::connect(fd_, (struct sockaddr*)&server_, sizeof(server_)) == 0;
         if (!connected_) {
             std::cout << "Connect() failed args: fd: " << fd_
                       << ", remote server path: ";
             error_msg = std::strerror(errno);
-            if(errno == 104) {
-                std::cout <<"got server reset received "<<"\n";
-                close(fd_);
-
-                server_.svm_cid = android_vm_cid;
-                server_.svm_family = AF_VSOCK;
-                server_.svm_port = DEFAULT_PORT_CAMERA;
-
-                fd_ = ::socket(AF_VSOCK, SOCK_STREAM, 0);
-                if (fd_ < 0) {
-                    std::cout <<"socket crreate failed "<<"\n";	
-                    throw std::system_error(errno, std::system_category());
-                }
-            }
         }
         return { connected_, error_msg };
     }
@@ -120,33 +108,17 @@ public:
     }
 
 
-    void Close() { close(fd_); }
-
-    void Reset() {
-        std::cout << "connection reset is called" <<"\n";
+    void Close() {
+        connected_ = false;
+        if (fd_ < 0) return;
+        shutdown(fd_, SHUT_RDWR);
         close(fd_);
-        
-        server_.svm_cid = android_vm_cid;
-        server_.svm_family = AF_VSOCK;
-        server_.svm_port = DEFAULT_PORT_CAMERA;
-
-        fd_ = ::socket(AF_VSOCK, SOCK_STREAM, 0);
-        if (fd_ < 0) {
-		std::cout <<"socket crreate failed "<<"\n";	
-            throw std::system_error(errno, std::system_category());
-        }
-        Connect();
-        need_reset_ = true;
+        fd_ = -1;
     }
-    bool NeedConnectionReset() { return need_reset_; }
-    
-    void ClearReset() { need_reset_ = false; }
-    
+
 private:
-    int  fd_;
+    int  fd_ = -1;
     bool connected_ = false;
-    bool need_reset_ = false;
-    int android_vm_cid;
     struct sockaddr_vm server_;
 };
 

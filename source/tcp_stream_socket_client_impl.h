@@ -27,18 +27,19 @@ public:
         tcp_sock_addr_.sin_family = AF_INET;
         tcp_sock_addr_.sin_port = htons(port);
         inet_pton(AF_INET,remote_server_ip.c_str(), &tcp_sock_addr_.sin_addr);
-
-        fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (fd_ < 0) {
-            throw std::system_error(errno, std::system_category());
-        }
     }
     ~Impl() { Close(); }
 
     ConnectionResult Connect()
     {
         std::string error_msg = "";
-
+        if (fd_ >= 0) {
+            Close();
+        }
+        fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (fd_ < 0) {
+            throw std::system_error(errno, std::system_category());
+        }
         connected_ = ::connect(fd_, (struct sockaddr*)&tcp_sock_addr_, sizeof(struct sockaddr_in)) == 0;
         if (!connected_) {
             error_msg = std::strerror(errno);
@@ -68,7 +69,7 @@ public:
         std::string error_msg = "";
         ssize_t left = size;
         while (left > 0 ) {
-            ssize_t received = ::recv(fd_,data, size,0);
+            ssize_t received = ::recv(fd_,data, left,0);
             if (received <= 0) {
                 std::cout << ". Recv() args: fd: " << fd_ << ", data: " << data
                       << ", size: " << size << "\n";
@@ -84,6 +85,7 @@ public:
     }
 
     void Close() {
+        connected_ = false;
         if (fd_ < 0) return;
         shutdown(fd_, SHUT_RDWR);
         close(fd_);
@@ -91,7 +93,7 @@ public:
     }
 
 private:
-    int  fd_;
+    int  fd_ = -1;
     bool connected_ = false;
     struct sockaddr_in tcp_sock_addr_;
 };

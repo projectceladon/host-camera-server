@@ -4,27 +4,56 @@ target_link_libraries (camera_socket_client LINK_PUBLIC ${PROJECT_NAME})
 add_executable (camera_client camera_client.cc)
 target_link_libraries (camera_client LINK_PUBLIC ${PROJECT_NAME})
 
+add_executable (sensor_client sensor_client.cc)
+target_link_libraries (sensor_client LINK_PUBLIC ${PROJECT_NAME})
 
-find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)
-find_library(AVCODEC_LIBRARY avcodec)
+find_package(PkgConfig REQUIRED)
 
-find_path(AVFORMAT_INCLUDE_DIR libavformat/avformat.h)
-find_library(AVFORMAT_LIBRARY avformat)
+pkg_check_modules(PKG_FFMPEG REQUIRED
+    libavdevice
+    libavfilter
+    libavformat
+    libavcodec
+    libswresample
+    libswscale
+    libavutil
+    IMPORTED_TARGET
+)
 
-find_path(AVUTIL_INCLUDE_DIR libavutil/avutil.h)
-find_library(AVUTIL_LIBRARY avutil)
+add_library(FFmpeg INTERFACE)
 
-find_path(AVDEVICE_INCLUDE_DIR libavdevice/avdevice.h)
-find_library(AVDEVICE_LIBRARY avdevice)
+target_link_libraries(FFmpeg
+    INTERFACE
+    PkgConfig::PKG_FFMPEG
+)
 
-find_path(SWSCALE_INCLUDE_DIR libswscale/swscale.h)
-find_library(SWSCALE_LIBRARY swscale)
+add_executable (stream host_camera_server.cc)
 
-INCLUDE_DIRECTORIES(PRIVATE  ${SWSCALE_INCLUDE_DIR} ${AVCODEC_INCLUDE_DIR} ${AVFORMAT_INCLUDE_DIR} ${AVUTIL_INCLUDE_DIR} ${AVDEVICE_INCLUDE_DIR})
-ADD_EXECUTABLE(stream host_camera_server.cc)
-TARGET_LINK_LIBRARIES(stream  LINK_PUBLIC ${PROJECT_NAME} ${SWSCALE_LIBRARY} ${ARCHIVE_LIBS} ${LINK_FLAGS} ${AVCODEC_LIBRARY} ${AVFORMAT_LIBRARY} ${AVUTIL_LIBRARY} ${AVDEVICE_LIBRARY})
+find_package(Threads REQUIRED)
+
+target_link_libraries(stream
+    PRIVATE
+    FFmpeg
+    Threads::Threads
+    ${PROJECT_NAME}
+    ${CMAKE_DL_LIBS}
+)
+add_executable (audio_record_client audio_record_client.cc)
+target_link_libraries (audio_record_client LINK_PUBLIC ${PROJECT_NAME})
+
+add_executable (audio_playback_client audio_playback_client.cc)
+target_link_libraries (audio_playback_client LINK_PUBLIC ${PROJECT_NAME})
+
+add_executable (virtual_input_receiver_sample virtual_input_receiver_sample.cc)
+target_link_libraries (virtual_input_receiver_sample LINK_PUBLIC ${PROJECT_NAME})
+
+add_executable (virtual_gps_receiver_sample virtual_gps_receiver_sample.cc)
+target_link_libraries (virtual_gps_receiver_sample LINK_PUBLIC ${PROJECT_NAME})
 
 install(TARGETS camera_socket_client
                 camera_client
+                sensor_client
                 stream
+                audio_record_client
+                audio_playback_client
         DESTINATION ${CMAKE_INSTALL_FULL_BINDIR})

@@ -47,10 +47,7 @@ public:
     IOResult         Recv(uint8_t* data, size_t size) override;
 
     void             Close() override;
-    void             Reset() override;
-    bool             NeedConnectionReset() override;
-    void             ClearReset() override;
-    
+
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;
