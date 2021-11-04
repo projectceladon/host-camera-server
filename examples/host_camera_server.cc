@@ -255,7 +255,24 @@ int main(int argc, char** argv)
     thread       file_src_thread;
     atomic<bool> request_negotiation = false;
 	//search for virtual device nodes
-    get_all_dev_nodes();
+    char sys_path[255];
+
+    for(int devId = 0; devId < 255; devId++) {
+        sprintf(sys_path,"/sys/devices/virtual/video4linux/video%d/name", devId);
+        int fp = open(sys_path, O_RDONLY);
+        if(fp) {
+            char sys_entry[12];
+            read(fp, sys_entry, 10);
+            if(strstr(sys_entry, "normal") != NULL) {
+                cout <<"found virtual node"<<sys_entry<<endl;
+                char dev_name[255];
+                sprintf(dev_name, "/dev/video%d", devId);
+                strcpy(device_index, dev_name);
+                break;
+            }
+        }
+    }
+
 
     unsigned int temp = 0;
     cout <<"open camera " << device_index;
