@@ -156,11 +156,23 @@ public:
 
       	std::tuple<ssize_t, std::string> response;
 
+	uint8_t packet_header[5] = "OK";
+        response = socket_client_->Send(packet_header, 2);
+        if (get<0>(response) == -1) {
+                get<1>(response) = "Error in writing payload to Camera VHal: "
+                  + get<1>(response);
+		cout <<" data send encountered serious error hence calling camera close and connection reset" <<"\n";
+
+                return response;
+            }
+        // success
         // Write payload
         response = socket_client_->Send(packet, size);
         if (get<0>(response) == -1) {
                 get<1>(response) = "Error in writing payload to Camera VHal: "
                   + get<1>(response);
+		cout <<" data send encountered serious error hence calling camera close and connection reset" <<"\n";
+
                 return response;
             }
         // success

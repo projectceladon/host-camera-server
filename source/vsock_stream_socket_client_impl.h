@@ -88,7 +88,7 @@ public:
 
         ssize_t sent = ::send(fd_, data, size, 0);
         if (sent  == -1) {
-            std::cout << ". Send() args: fd: " << fd_ << ", data: " << data
+            std::cout << ". Send() args: fd: " << fd_
                       << ", size: " << size << "\n";
             error_msg = std::strerror(errno);
         }
@@ -100,7 +100,7 @@ public:
         std::string error_msg = "";
         ssize_t received = ::recv(fd_, data, size, 0);
         if (received  == -1) {
-            std::cout << ". Recv() args: fd: " << fd_ << ", data: " << data
+            std::cout << ". Recv() args: fd: " << fd_
                       << ", size: " << size << "\n";
             error_msg = std::strerror(errno);
         }

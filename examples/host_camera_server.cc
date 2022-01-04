@@ -101,7 +101,9 @@ void get_all_dev_nodes()
 void dumpFrame(unsigned char *bufdest) {
     FILE* pFile;
     char file_name[100] = "output";
-    unsigned int img_id = buf_count % 10;
+    if(buf_count > 30)
+	    return;
+    unsigned int img_id = buf_count ;
     sprintf(file_name, "%d.yuv", img_id);
     pFile = fopen(file_name,"wb");
 
@@ -110,6 +112,7 @@ void dumpFrame(unsigned char *bufdest) {
     }
     else
         cout << "Can't open file\n";
+
     if(pFile)
         fclose(pFile);
 
@@ -254,6 +257,7 @@ int main(int argc, char** argv)
     int          instance_id = 3;
     thread       file_src_thread;
     atomic<bool> request_negotiation = false;
+    static int open_close_count = 0;
 	//search for virtual device nodes
     char sys_path[255];
 
@@ -295,20 +299,38 @@ int main(int argc, char** argv)
         exit(1);
     }
 
-    cout << "Waiting Camera Open callback..\n" << device_index;
+    cout << "[Stream] Waiting Camera Open callback..\n" << device_index;
 
     video_sink->RegisterCallback(
       [&](const VideoSink::CtrlMessage& ctrl_msg) {
-          cout << "received new cmd to process ";
+          cout << "[Stream] received new cmd to process ";
 
           switch (ctrl_msg.cmd) {
               case VideoSink::Command::kOpen:
-	          cout << "Received Open command from Camera VHal\n";
+	          cout << "[Stream] Received Open command from Camera VHal\n";
+		  //cout <<"[Stream] camera open called again "<<width<<height<<"\n";
+		  buf_count = 0;
+		  if( open_close_count % 2 != 0) {
+		  cout << "[Stream] camera already opened, closing old instance"<<"\n";
+
+                  stop = true;
+                  this_thread::sleep_for(100ms);
+                  for(int count = 0; count < BUF_COUNT; count++)
+                      free(buf_list[count]);
+
+		  avformat_close_input(&stream_ctx->ifmt_ctx);
+                  avformat_close_input(&stream_ctx->ofmt_ctx);
+                  free(stream_ctx);
+                  stream_ctx = NULL;
+                  file_src_thread.join();
+                  open_close_count++;
+
+		  }
                   stop = false;
                   for(int count = 0; count < BUF_COUNT; count++)
                       buf_list[count] = (unsigned char*)calloc(1, inbuf_size);
                   open_camera();
-
+                  open_close_count++;
                   file_src_thread = thread([&stop,
                                             &video_sink,
                                             &device_index]() {
@@ -317,25 +339,15 @@ int main(int argc, char** argv)
                       while (!stop) {
 		      
                           if(av_read_frame(stream_ctx->ifmt_ctx, pkt) < 0)
-                              cout << "Fail to read frame";
+                              cout << "[Stream] Fail to read frame";
                           yuyv422_to_yuv420sp(pkt->data, buf_list[buf_count % BUF_COUNT], width, height, false);
                           // Write payload
                           if (auto [sent, error_msg] =
                                 video_sink->SendRawPacket(buf_list[buf_count % BUF_COUNT],
                                                             inbuf_size);
                               sent < 0) {
-                              cout <<"closing camera as packet send failed: "
+                              cout <<"[Stream] closing camera as packet send failed: "
                                 << error_msg << "\n";
-     		              stop = true;
-                              this_thread::sleep_for(100ms);
-                              for(int count = 0; count < BUF_COUNT; count++)
-                                  free(buf_list[count]);
-
-                              cout << "Received Close command from Camera VHal\n";
-                              avformat_close_input(&stream_ctx->ifmt_ctx);
-                              avformat_close_input(&stream_ctx->ofmt_ctx);
-                              free(stream_ctx);
-                              stream_ctx = NULL;
                           }
                           buf_count++;
                           this_thread::sleep_for(33ms);
@@ -348,18 +360,22 @@ int main(int argc, char** argv)
                   break;
 
               case VideoSink::Command::kClose:
+                  if( open_close_count % 2 == 0) {
+			  cout <<"[Stream] camera already closed "<<endl;
+                  }
                   stop = true;
                   this_thread::sleep_for(100ms);
                   for(int count = 0; count < BUF_COUNT; count++)
                       free(buf_list[count]);
 
-                  cout << "Received Close command from Camera VHal\n";
+                  cout << "[Stream] Received Close command from Camera VHal\n";
 		  avformat_close_input(&stream_ctx->ifmt_ctx);
                   avformat_close_input(&stream_ctx->ofmt_ctx);
                   free(stream_ctx);
                   stream_ctx = NULL;
                   
                   file_src_thread.join();
+		  open_close_count++;
                   break;
 
              case VideoSink::Command::kNone:
