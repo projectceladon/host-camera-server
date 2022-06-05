@@ -95,10 +95,10 @@ public:
         return { sent, error_msg };
     }
 
-    IOResult Recv(uint8_t* data, size_t size)
+    IOResult Recv(uint8_t* data, size_t size, uint8_t flag)
     {
         std::string error_msg = "";
-        ssize_t received = ::recv(fd_, data, size, 0);
+        ssize_t received = ::recv(fd_, data, size, flag);
         if (received  == -1) {
             std::cout << ". Recv() args: fd: " << fd_
                       << ", size: " << size << "\n";

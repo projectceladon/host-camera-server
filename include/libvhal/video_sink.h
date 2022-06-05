@@ -40,68 +40,154 @@ namespace client {
 class VideoSink
 {
 public:
+
+
     /**
-     * @brief
+     * @brief protocol ack notification flags
      *
      */
-    enum class VideoCodecType
+    enum CameraAck {
+        NACK_CONFIG =0,
+        ACK_CONFIG = 1,
+    };
+
+    /**
+     * @brief data transfer control cmd
+     *
+     */
+    enum camera_packet_type_t : uint32_t {
+        REQUST_CAPABILITY = 0,
+        CAPABILITY = 1,
+        CAMERA_CONFIG = 2,
+        CAMERA_DATA = 3,
+        ACK = 4,
+        CAMERA_INFO = 5,
+    };
+
+    /**
+     * @brief header info to share host capabality
+     * @size is sizeof(payload). Payload's size depends on the type of the data. See #camera_packet_type_t.
+     *
+     */
+    struct camera_header_t
     {
-        kH264 = 0,
-        kI420
+        camera_packet_type_t type;
+        uint32_t size; // number of cameras * sizeof(camera_info_t)
     };
 
     /**
      * @brief
      *
      */
-    enum class FrameResolution
-    {
-        k480p = 0,
-        k720p,
-        k1080p
+    enum VideoCodecType : uint32_t {
+        kH264 = 0x01,
+        kH265 = 0x02,
+        kI420 = 0x04,
+        kMJPEG = 0x05
     };
 
     /**
-     * @brief Camera capabilities that needs to be supported by Remote camera.
+     * @brief
      *
      */
-    struct VideoParams
+    enum FrameResolution : uint32_t {
+        k480p = 0x01,    // 640x480
+        k720p = 0x02,   // 1280x720
+        k1080p = 0x04  // 1920x1080
+    };
+
+    /**
+     * Image sensor orientation info
+     */
+    enum SensorOrientation : uint32_t {
+        ORIENTATION_0 = 0,
+        ORIENTATION_90 = 90,
+        ORIENTATION_180 = 180,
+        ORIENTATION_270 = 270
+    };
+
+    /**
+     * Camera facing info
+     */
+    enum CameraFacing : uint32_t {
+        BACK_FACING = 0,
+        FRONT_FACING = 1
+    };
+
+    /**
+     * @brief Camera capabilities of the Android camera vHAL that
+     * needs to be shared with client.
+     */
+    struct camera_capability_t
     {
-        VideoCodecType  codec_type = VideoCodecType::kH264;
+        VideoCodecType codec_type = VideoCodecType::kH264;
         FrameResolution resolution = FrameResolution::k480p;
-        uint32_t        reserved[4];
+        uint32_t maxNumberOfCameras;
+        uint32_t reserved[5];
+    };
+
+    /**
+     * @brief Camera capability info of the remote camera requested to
+     * camera vHAL.
+     */
+    struct camera_info_t {
+        uint32_t cameraId;
+        VideoCodecType codec_type;
+        FrameResolution resolution;
+        SensorOrientation sensorOrientation;
+        CameraFacing facing;  // '0' for back camera and '1' for front camera
+        uint32_t reserved[3];
+    };
+
+    /**
+     * @brief Camera config is used to pass the camera parameters from
+     * camera vHAL to client on every openCamera() call.
+     */
+    struct camera_config_t {
+        uint32_t cameraId;
+        VideoCodecType codec_type;
+        FrameResolution resolution;
+        uint32_t reserved[5];
+    };
+
+    /**
+     * @brief encapsulated structure to exchange both data and control
+     *
+     */
+    struct camera_packet_t {
+        camera_header_t header;
+        uint8_t *payload;
     };
 
     /**
      * @brief Camera operation commands sent by Camera VHAL to client.
      *
      */
-    enum class Command
-    {
-        kOpen  = 11,
-        kClose = 12,
-        kNone  = 13
+    enum camera_cmd_t {
+        CMD_OPEN  = 11,
+        CMD_CLOSE = 12,
+        CMD_NONE  = 15
     };
 
     /**
      * @brief Camera VHAL version.
      *
      */
-    enum class VHalVersion
-    {
-        kV1 = 0, // decode out of camera vhal
-        kV2 = 1, // decode in camera vhal
+    enum camera_version_t {
+        CAMERA_VHAL_VERSION_1 = 0, // decode out of camera vhal
+        CAMERA_VHAL_VERSION_2 = 1, // decode in camera vhal
     };
 
+
     /**
-     * @brief Camera control message sent by Camera VHAL to client.
+     * @brief Camera config cmd sent by camera vHAL to client.
      *
      */
-    struct CtrlMessage
+    struct camera_config_cmd_t
     {
-        VHalVersion version = VHalVersion::kV2;
-        Command     cmd     = Command::kNone;
-        VideoParams video_params;
+        camera_version_t version = camera_version_t::CAMERA_VHAL_VERSION_2;
+        camera_cmd_t cmd = camera_cmd_t::CMD_NONE;
+        camera_config_t camera_config;
     };
 
     /**
@@ -109,16 +195,19 @@ public:
      * OpenCamera and CloseCamera cases.
      *
      */
-    using CameraCallback = std::function<void(const CtrlMessage& ctrl_msg)>;
+    using CameraCallback = std::function<void(const camera_config_cmd_t& ctrl_msg)>;
 
     /**
      * @brief Construct a default VideoSink object from the Android instance id.
      *        Throws std::invalid_argument excpetion.
      *
      * @param unix_conn_info Information needed to connect to the unix vhal socket.
+     * @param callback Camera callback function object or lambda or function
+     * pointer.
      *
      */
-    VideoSink(UnixConnectionInfo unix_conn_info);
+    VideoSink(UnixConnectionInfo unix_conn_info, CameraCallback callback);
+
     /**
      * @brief Construct a default VideoSink object from the Android vm cid.
      *        Throws std::invalid_argument excpetion.
@@ -127,7 +216,7 @@ public:
      *
      */
 
-    VideoSink(VsockConnectionInfo vsock_conn_info);
+    VideoSink(VsockConnectionInfo vsock_conn_info, CameraCallback callback);
 
     /**
      * @brief Destroy the VideoSink object
@@ -136,15 +225,12 @@ public:
     ~VideoSink();
 
     /**
-     * @brief Registers Camera callback.
+     * @brief Returns Camera vhal connection status.
      *
-     * @param callback Camera callback function object or lambda or function
-     * pointer.
-     *
-     * @return true Camera callback registered successfully.
-     * @return false Camera callback failed to register.
+     * @return true Connected to Camera vhal.
+     * @return false Not Connected to Camera vhal.
      */
-    bool RegisterCallback(CameraCallback callback);
+    bool IsConnected();
 
     /**
      * @brief Send an encoded Camera packet to VHAL.
@@ -181,6 +267,27 @@ public:
      *         string is the status message.
      */
     IOResult SendRawPacket(const uint8_t* packet, size_t size);
+
+    /**
+     * @brief GetCameraCapabilty
+     *        api is called to get vhal capability
+     *        client should call this api after successful connection 
+     *
+     * @return camera_capability_t which provides vhal capabilites
+     * @return NULL on failure
+     */
+    std::shared_ptr<camera_capability_t> GetCameraCapabilty();
+
+    /**
+     * @brief SetCameraCapability() API is called to set client
+     *        requested capability to camera vHAL
+     *
+     * @param camera_info_t
+     *
+     * @return true libvhal able to send camera info
+     * @return false libvhal failed to send camera info
+     */
+    bool SetCameraCapabilty(std::vector<camera_info_t> camera_info);
 
 private:
     class Impl;

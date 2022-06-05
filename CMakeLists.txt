@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.6)
 project (vhal-client VERSION 0.1 DESCRIPTION "VHAL Client library written in C++17 for Touch, Joystick, GPS, Audio, Camera and Sensor, " LANGUAGES CXX)
 
-option(BUILD_EXAMPLES "Build examples?" ON)
+option(BUILD_EXAMPLES "Build host_camera_service?" ON)
 
 message(STATUS "Project name: ${PROJECT_NAME}")
 
@@ -34,7 +34,7 @@ link_directories ("${LIBRARY_OUTPUT_PATH}")
 add_subdirectory (source)
 add_subdirectory (include/libvhal)
 if (BUILD_EXAMPLES)
-  add_subdirectory (examples)
+  add_subdirectory (host_camera_service)
 endif()
 
 #Add pkg-config file
