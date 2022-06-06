@@ -34,7 +34,7 @@
 namespace vhal {
 namespace client {
 
-VideoSink::VideoSink(UnixConnectionInfo unix_conn_info)
+VideoSink::VideoSink(UnixConnectionInfo unix_conn_info, CameraCallback callback)
 {
     auto sockPath = unix_conn_info.socket_dir;
     if (sockPath.length() == 0) {
@@ -49,10 +49,10 @@ VideoSink::VideoSink(UnixConnectionInfo unix_conn_info)
     //Creating interface to communicate to VHAL via libvhal
     auto unix_sock_client =
       std::make_unique<UnixStreamSocketClient>(std::move(sockPath));
-    impl_ = std::make_unique<Impl>(std::move(unix_sock_client));
+    impl_ = std::make_unique<Impl>(std::move(unix_sock_client), callback);
 }
 
-VideoSink::VideoSink(VsockConnectionInfo vsock_conn_info)
+VideoSink::VideoSink(VsockConnectionInfo vsock_conn_info, CameraCallback callback)
 {
 
     if(vsock_conn_info.android_vm_cid == -1) {
@@ -61,15 +61,15 @@ VideoSink::VideoSink(VsockConnectionInfo vsock_conn_info)
     //Creating interface to communicate to VHAL via libvhal
     auto vsock_sock_client =
       std::make_unique<VsockStreamSocketClient>(std::move(vsock_conn_info.android_vm_cid));
-    impl_ = std::make_unique<Impl>(std::move(vsock_sock_client));
+    impl_ = std::make_unique<Impl>(std::move(vsock_sock_client), callback);
 }
 
 VideoSink::~VideoSink() {}
 
 bool
-VideoSink::RegisterCallback(CameraCallback callback)
+VideoSink::IsConnected()
 {
-    return impl_->RegisterCallback(callback);
+    return impl_->IsConnected();
 }
 
 IOResult VideoSink::SendDataPacket(const uint8_t* packet, size_t size)
@@ -82,5 +82,16 @@ IOResult VideoSink::SendRawPacket(const uint8_t* packet, size_t size)
     return impl_->SendRawPacket(packet, size);
 }
 
+std::shared_ptr<VideoSink::camera_capability_t>
+VideoSink::GetCameraCapabilty()
+{
+    return impl_->GetCameraCapabilty();
+}
+
+bool
+VideoSink::SetCameraCapabilty(std::vector<camera_info_t> camera_info)
+{
+    return impl_->SetCameraCapabilty(camera_info);
+}
 }; // namespace client
 } // namespace vhal

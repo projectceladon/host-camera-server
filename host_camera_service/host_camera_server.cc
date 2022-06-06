@@ -48,6 +48,10 @@ extern "C" {
     #include <libswscale/swscale.h>
     #include <libavutil/imgutils.h>
 }
+
+// Define the number of cameras that needs to supported.
+#define NUM_OF_CAMERAS_REQUESTED 1 // Max would be 2 for now.
+
 using namespace std::chrono_literals;
 using namespace vhal::client;
 using namespace std;
@@ -65,11 +69,11 @@ typedef struct stream_ctx_t
 stream_ctx_t *stream_ctx;
 
 char device_index[] = "/dev/video0";
-int width = 640;
-int height = 480;
+int width = 1920;
+int height = 1080;
 int fps = 30;
 AVPacket *pkt;
-
+int v4l2_format = VideoSink::VideoCodecType::kMJPEG; 
 #define BUF_COUNT 4
 unsigned int buf_count = 0;
 unsigned char *buf_list[BUF_COUNT];
@@ -98,7 +102,7 @@ void get_all_dev_nodes()
 
 }
 
-void dumpFrame(unsigned char *bufdest) {
+void dumpFrame(unsigned char *bufdest, unsigned int sz) {
     FILE* pFile;
     char file_name[100] = "output";
     if(buf_count > 30)
@@ -108,7 +112,7 @@ void dumpFrame(unsigned char *bufdest) {
     pFile = fopen(file_name,"wb");
 
     if (pFile ){
-        fwrite(bufdest,1,width * height * 1.5,pFile);
+        fwrite(bufdest,1,sz,pFile);
     }
     else
         cout << "Can't open file\n";
@@ -182,7 +186,7 @@ yuyv422_to_yuv420sp(unsigned char *bufsrc, unsigned char *dst_buf, int width, in
         }
     }
 }
-
+    shared_ptr<VideoSink>   video_sink;
 const char *get_device_family()
 {
 #ifdef _WIN32
@@ -209,10 +213,15 @@ int init_device_and_input_context(stream_ctx_t *stream_ctx, const char *device_f
     AVDictionary *options = NULL;
     av_dict_set(&options, "video_size", size.c_str(), 0);
     av_dict_set(&options, "framerate", fps_str.c_str(), 0);
-    av_dict_set(&options, "pixel_format", "yuv420p", 0);
     av_dict_set(&options, "probesize", "7000000", 0);
+//    if(v4l2_format == VideoSink::VideoCodecType::kI420)
+  //      av_dict_set(&options, "input_format", "yuv", 0); 
+    if(v4l2_format == VideoSink::VideoCodecType::kMJPEG)
+        av_dict_set(&options, "input_format", "mjpeg", 0); 
+    if(v4l2_format == VideoSink::VideoCodecType::kH264)
+        av_dict_set(&options, "input_format", "h264", 0);
 
-    if (avformat_open_input(&stream_ctx->ifmt_ctx, device_index, NULL, NULL/*stream_ctx->ifmt, &options*/) != 0)
+    if (avformat_open_input(&stream_ctx->ifmt_ctx, device_index, NULL, &options) != 0)
     {
         cout<<"cannot initialize input device! "<<av_strerror<<"\n";;
         ret_code = 1;
@@ -251,16 +260,44 @@ int open_camera()
     return 0;
 }
 
+void* InitCamera(void *arg)
+{
+    atomic<bool> request_negotiation = false;
+    while(true) {
+        while (!video_sink->IsConnected() || !request_negotiation) {
+		cout <<"Shiva is not connected \n";
+                request_negotiation = false;
+
+            if (!request_negotiation && video_sink->IsConnected()) {
+		    cout <<"Shiva now its connected";
+                video_sink->GetCameraCapabilty();
+                std::vector<VideoSink::camera_info_t> camera_info(NUM_OF_CAMERAS_REQUESTED);
+                for (int i = 0; i < NUM_OF_CAMERAS_REQUESTED; i++) {
+                    camera_info[i].codec_type = (VideoSink::VideoCodecType)v4l2_format;
+                    camera_info[i].resolution = VideoSink::FrameResolution::k1080p;
+                }
+                                video_sink->SetCameraCapabilty(camera_info);
+                request_negotiation = true;
+	    }
+	}
+	usleep(10000);
+    }
+}
+
+pthread_cond_t thread_running = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t thread_lock = PTHREAD_MUTEX_INITIALIZER;
+
 int main(int argc, char** argv)
 {
     atomic<bool> stop = true;
     int          instance_id = 3;
     thread       file_src_thread;
-    atomic<bool> request_negotiation = false;
+//    atomic<bool> request_negotiation = false;
     static int open_close_count = 0;
 	//search for virtual device nodes
     char sys_path[255];
 
+    pthread_t t_handle;
     for(int devId = 0; devId < 255; devId++) {
         sprintf(sys_path,"/sys/devices/virtual/video4linux/video%d/name", devId);
         int fp = open(sys_path, O_RDONLY);
@@ -281,40 +318,30 @@ int main(int argc, char** argv)
     unsigned int temp = 0;
     cout <<"open camera " << device_index;
 
-
     pkt = av_packet_alloc();
     av_init_packet(pkt);
     buf_count = 0;
     //create buffer
     const size_t inbuf_size = width * height * 1.5;
     
-    shared_ptr<VideoSink>   video_sink;
-
     VsockConnectionInfo conn_info = { instance_id };
     try {
-        video_sink = make_shared<VideoSink>(conn_info);
-    } catch (const std::exception& ex) {
-        cout << "VideoSink creation error :"
-             << ex.what() << endl;
-        exit(1);
-    }
-
-    cout << "[Stream] Waiting Camera Open callback..\n" << device_index;
-
-    video_sink->RegisterCallback(
-      [&](const VideoSink::CtrlMessage& ctrl_msg) {
-          cout << "[Stream] received new cmd to process ";
+        video_sink = make_shared<VideoSink>(conn_info,
+          [&](const VideoSink::camera_config_cmd_t& ctrl_msg) {
+            cout << "[Stream] received new cmd to process ";
 
           switch (ctrl_msg.cmd) {
-              case VideoSink::Command::kOpen:
-	          cout << "[Stream] Received Open command from Camera VHal\n";
-		  //cout <<"[Stream] camera open called again "<<width<<height<<"\n";
+                case VideoSink::camera_cmd_t::CMD_OPEN:
+	          cout << " [Stream] Received Open command from Camera VHal\n";
 		  buf_count = 0;
 		  if( open_close_count % 2 != 0) {
 		  cout << "[Stream] camera already opened, closing old instance"<<"\n";
+                  
+		  stop = true;
+                  pthread_cond_wait(&thread_running, &thread_lock);
+                  pthread_mutex_unlock(&thread_lock);
 
-                  stop = true;
-                  this_thread::sleep_for(100ms);
+		  this_thread::sleep_for(100ms);
                   for(int count = 0; count < BUF_COUNT; count++)
                       free(buf_list[count]);
 
@@ -326,6 +353,7 @@ int main(int argc, char** argv)
                   open_close_count++;
 
 		  }
+                  pthread_mutex_lock(&thread_lock);
                   stop = false;
                   for(int count = 0; count < BUF_COUNT; count++)
                       buf_list[count] = (unsigned char*)calloc(1, inbuf_size);
@@ -336,35 +364,65 @@ int main(int argc, char** argv)
                                             &device_index]() {
 
                      const size_t inbuf_size = width * height * 1.5;
+		     struct timeval tval_before, tval_after, tval_result;
+
                       while (!stop) {
+                          gettimeofday(&tval_before, NULL);
 		      
                           if(av_read_frame(stream_ctx->ifmt_ctx, pkt) < 0)
                               cout << "[Stream] Fail to read frame";
-                          yuyv422_to_yuv420sp(pkt->data, buf_list[buf_count % BUF_COUNT], width, height, false);
-                          // Write payload
-                          if (auto [sent, error_msg] =
-                                video_sink->SendRawPacket(buf_list[buf_count % BUF_COUNT],
-                                                            inbuf_size);
-                              sent < 0) {
-                              cout <<"[Stream] closing camera as packet send failed: "
-                                << error_msg << "\n";
+                          //dumpFrame(pkt->data, pkt->size);
+			  cout <<" av packet received size "<<pkt->size<<"s                                  tream idx "<<pkt->stream_index<<"\n";
+			  if(v4l2_format == VideoSink::VideoCodecType::kI420) {
+                              yuyv422_to_yuv420sp(pkt->data, buf_list[buf_count                                  % BUF_COUNT], width, height, false);
+                        
+			      // Write payload
+                              if (auto [sent, error_msg] =
+                                  video_sink->SendDataPacket(buf_list[buf_count                                      % BUF_COUNT],
+                                     inbuf_size);
+                                  sent < 0) {
+                                        cout <<"[Stream] closing camera as pack                                            et send failed: "
+                                            << error_msg << "\n";
+                              }
+			 
+		          }else {
+                              if (auto [sent, error_msg] =
+                                video_sink->SendDataPacket(pkt->data,
+                                                           pkt->size);
+                                 sent < 0) {
+                                    cout <<"[Stream] closing camera as packet s                                        end failed: "
+                                        << error_msg << "\n";
+                                 }
                           }
                           buf_count++;
-                          this_thread::sleep_for(33ms);
+			  gettimeofday(&tval_after, NULL);
+timersub(&tval_after, &tval_before, &tval_result);
+unsigned int sleep_time = (33 - (tval_result.tv_usec /1000));
+//cout <<"Shiva now sleep for "<<(sleep_time)<<"and " <<tval_result.tv_usec<<"\n";
+    std::chrono::duration<double, std::milli> elapsed = (std::chrono::duration<double, std::milli>)sleep_time;
+                          
+                          
+//this_thread::sleep_for(33ms);
 			  av_packet_unref(pkt);
                           av_new_packet(pkt, 0);
 
+//if(sleep_time > 1)
+this_thread::sleep_for(32ms);
+			  //			  cout << "Shiva sleeping for "<<elapsed.count()<<"\n";
                       }
-
+		      cout <<"camera thread exit "<<"\n";
+                      pthread_cond_signal(&thread_running);
                   });
                   break;
 
-              case VideoSink::Command::kClose:
+                case VideoSink::camera_cmd_t::CMD_CLOSE:
                   if( open_close_count % 2 == 0) {
 			  cout <<"[Stream] camera already closed "<<endl;
                   }
                   stop = true;
-                  this_thread::sleep_for(100ms);
+                  pthread_cond_wait(&thread_running, &thread_lock);
+                  pthread_mutex_unlock(&thread_lock);
+		  this_thread::sleep_for(100ms);
                   for(int count = 0; count < BUF_COUNT; count++)
                       free(buf_list[count]);
 
@@ -378,9 +436,9 @@ int main(int argc, char** argv)
 		  open_close_count++;
                   break;
 
-             case VideoSink::Command::kNone:
-                  cout << "Received None\n";
-                  break;
+               case VideoSink::camera_cmd_t::CMD_NONE:
+                    cout << "Received None\n";
+                    break;
 
               default:
                   cout << "Unknown Command received, exiting with failure : "  << (int)ctrl_msg.cmd << "\n";
@@ -388,6 +446,14 @@ int main(int argc, char** argv)
           }
       });
 
+    } catch (const std::exception& ex) {
+        cout << "VideoSink creation error :"
+             << ex.what() << endl;
+        exit(1);
+    }
+        int err = pthread_create(&t_handle, NULL, &InitCamera, NULL);
+if(err != 0)
+	cout << "Fail to create thread\n";
     // we need to be alive :)
     while (true) {
         this_thread::sleep_for(33ms);

@@ -87,7 +87,10 @@ enum sensor_type_t {
  */
 struct vhal_sensor_event_t {
     sensor_type_t type;  //sensor type
-    int32_t fdataCount; //Number of data fields(fdata).
+    union {
+        int32_t userId; //User Id for multiclient use case
+        int32_t fdataCount; //Number of data fields(fdata).
+    };
     int64_t timestamp_ns; //time is in nanoseconds
     float *fdata; //Sensor data
 };
