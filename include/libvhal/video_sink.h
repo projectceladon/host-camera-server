@@ -83,7 +83,7 @@ public:
         kH264 = 0x01,
         kH265 = 0x02,
         kI420 = 0x04,
-        kMJPEG = 0x05
+        kMJPEG = 0x08
     };
 
     /**

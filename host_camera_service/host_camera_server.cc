@@ -265,11 +265,10 @@ void* InitCamera(void *arg)
     atomic<bool> request_negotiation = false;
     while(true) {
         while (!video_sink->IsConnected() || !request_negotiation) {
-		cout <<"Shiva is not connected \n";
                 request_negotiation = false;
 
             if (!request_negotiation && video_sink->IsConnected()) {
-		    cout <<"Shiva now its connected";
+		    cout <<"[Stream] now its connected";
                 video_sink->GetCameraCapabilty();
                 std::vector<VideoSink::camera_info_t> camera_info(NUM_OF_CAMERAS_REQUESTED);
                 for (int i = 0; i < NUM_OF_CAMERAS_REQUESTED; i++) {
@@ -398,7 +397,6 @@ int main(int argc, char** argv)
 			  gettimeofday(&tval_after, NULL);
 timersub(&tval_after, &tval_before, &tval_result);
 unsigned int sleep_time = (33 - (tval_result.tv_usec /1000));
-//cout <<"Shiva now sleep for "<<(sleep_time)<<"and " <<tval_result.tv_usec<<"\n";
     std::chrono::duration<double, std::milli> elapsed = (std::chrono::duration<double, std::milli>)sleep_time;
                           
                           
@@ -408,7 +406,6 @@ unsigned int sleep_time = (33 - (tval_result.tv_usec /1000));
 
 //if(sleep_time > 1)
 this_thread::sleep_for(32ms);
-			  //			  cout << "Shiva sleeping for "<<elapsed.count()<<"\n";
                       }
 		      cout <<"camera thread exit "<<"\n";
                       pthread_cond_signal(&thread_running);
