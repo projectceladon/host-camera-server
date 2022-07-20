@@ -79,7 +79,7 @@ public:
                 fds[0].fd     = socket_client_->GetNativeSocketFd();
                 fds[0].events = POLLIN;
                 cmd_capability_ = std::make_shared<camera_capability_t>();
-		cout << "shiva camera connected \n";
+		cout << "[stream] camera connected \n";
 
                 do {
                     ret = poll(fds, std::size(fds), timeout_ms);

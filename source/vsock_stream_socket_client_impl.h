@@ -71,8 +71,6 @@ public:
         }
         connected_ = ::connect(fd_, (struct sockaddr*)&server_, sizeof(server_)) == 0;
         if (!connected_) {
-            std::cout << "Connect() failed args: fd: " << fd_
-                      << ", remote server path: ";
             error_msg = std::strerror(errno);
         }
         return { connected_, error_msg };
