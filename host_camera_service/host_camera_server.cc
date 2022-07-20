@@ -371,7 +371,6 @@ int main(int argc, char** argv)
                           if(av_read_frame(stream_ctx->ifmt_ctx, pkt) < 0)
                               cout << "[Stream] Fail to read frame";
                           //dumpFrame(pkt->data, pkt->size);
-			  cout <<" av packet received size "<<pkt->size<<"s                                  tream idx "<<pkt->stream_index<<"\n";
 			  if(v4l2_format == VideoSink::VideoCodecType::kI420) {
                               yuyv422_to_yuv420sp(pkt->data, buf_list[buf_count                                  % BUF_COUNT], width, height, false);
                         
