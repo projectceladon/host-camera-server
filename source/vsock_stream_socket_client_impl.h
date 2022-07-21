@@ -61,7 +61,6 @@ public:
     ConnectionResult Connect()
     {
         std::string error_msg = "";
-        std::cout << "cid " << server_.svm_cid << " port " << server_.svm_port;
         if (fd_ >= 0) {
             Close();
         }
