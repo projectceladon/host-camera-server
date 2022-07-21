@@ -60,9 +60,6 @@ public:
                 if (not socket_client_->Connected()) {
                     if (auto [connected, error_msg] = socket_client_->Connect();
                         !connected) {
-                        cout << "VideoSink Failed to connect to VHal: "
-                             << error_msg
-                             << ". Retry after 3ms...\n";
                         this_thread::sleep_for(33ms);
                         continue;
                     }

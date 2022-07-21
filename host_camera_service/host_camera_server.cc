@@ -68,7 +68,7 @@ typedef struct stream_ctx_t
 
 stream_ctx_t *stream_ctx;
 
-char device_index[] = "/dev/video0";
+char device_index[] = "/dev/video6";
 int width = 1920;
 int height = 1080;
 int fps = 30;
