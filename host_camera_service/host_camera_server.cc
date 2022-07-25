@@ -78,6 +78,9 @@ int v4l2_format = VideoSink::VideoCodecType::kMJPEG;
 unsigned int buf_count = 0;
 unsigned char *buf_list[BUF_COUNT];
 
+pthread_mutex_t mMainLock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t mSignalMain = PTHREAD_COND_INITIALIZER;
+
 void get_all_dev_nodes()
 {
     int fd;
@@ -262,24 +265,16 @@ int open_camera()
 
 void* InitCamera(void *arg)
 {
-    atomic<bool> request_negotiation = false;
     while(true) {
-        while (!video_sink->IsConnected() || !request_negotiation) {
-                request_negotiation = false;
-
-            if (!request_negotiation && video_sink->IsConnected()) {
-		    cout <<"[Stream] now its connected";
-                video_sink->GetCameraCapabilty();
-                std::vector<VideoSink::camera_info_t> camera_info(NUM_OF_CAMERAS_REQUESTED);
-                for (int i = 0; i < NUM_OF_CAMERAS_REQUESTED; i++) {
-                    camera_info[i].codec_type = (VideoSink::VideoCodecType)v4l2_format;
-                    camera_info[i].resolution = VideoSink::FrameResolution::k1080p;
-                }
-                                video_sink->SetCameraCapabilty(camera_info);
-                request_negotiation = true;
-	    }
-	}
-	usleep(10000);
+        video_sink->ResetCameraCapabilty();
+        cout <<"[Stream] start capabilty exchange";
+        video_sink->GetCameraCapabilty();
+        std::vector<VideoSink::camera_info_t> camera_info(NUM_OF_CAMERAS_REQUESTED);
+        for (int i = 0; i < NUM_OF_CAMERAS_REQUESTED; i++) {
+            camera_info[i].codec_type = (VideoSink::VideoCodecType)v4l2_format;
+            camera_info[i].resolution = VideoSink::FrameResolution::k1080p;
+        }
+        video_sink->SetCameraCapabilty(camera_info);
     }
 }
 
@@ -447,12 +442,13 @@ this_thread::sleep_for(32ms);
              << ex.what() << endl;
         exit(1);
     }
-        int err = pthread_create(&t_handle, NULL, &InitCamera, NULL);
-if(err != 0)
-	cout << "Fail to create thread\n";
+    int err = pthread_create(&t_handle, NULL, &InitCamera, NULL);
+    if(err != 0)
+        cout << "Fail to create thread\n";
     // we need to be alive :)
     while (true) {
-        this_thread::sleep_for(33ms);
+	pthread_mutex_lock(&mMainLock);
+        pthread_cond_wait(&mSignalMain, &mMainLock);
     }
 
     return 0;

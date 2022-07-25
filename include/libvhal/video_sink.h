@@ -289,6 +289,14 @@ public:
      */
     bool SetCameraCapabilty(std::vector<camera_info_t> camera_info);
 
+    /**
+     * @brief ResetCameraCapability() API is called to Reset client
+     *        requested capability to camera vHAL
+     *
+     *
+     * @return NULL
+     */
+    void ResetCameraCapabilty();
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;

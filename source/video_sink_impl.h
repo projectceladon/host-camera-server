@@ -76,7 +76,7 @@ public:
                 fds[0].fd     = socket_client_->GetNativeSocketFd();
                 fds[0].events = POLLIN;
                 cmd_capability_ = std::make_shared<camera_capability_t>();
-		cout << "[stream] camera connected \n";
+                pthread_cond_signal(&mSignalInit);
 
                 do {
                     ret = poll(fds, std::size(fds), timeout_ms);
@@ -311,12 +311,21 @@ public:
         return true;
     }
 
+    void ResetCameraCapabilty()
+    {
+        pthread_mutex_lock(&mInitLock);
+        pthread_cond_wait(&mSignalInit, &mInitLock);
+        pthread_mutex_unlock(&mInitLock);
+    }
 
 private:
     CameraCallback                  callback_ = nullptr;
     unique_ptr<IStreamSocketClient> socket_client_;
     thread                          vhal_talker_thread_;
     atomic<bool>                    should_continue_ = true;
+
+    pthread_cond_t mSignalInit = PTHREAD_COND_INITIALIZER;
+    pthread_mutex_t mInitLock = PTHREAD_MUTEX_INITIALIZER;
 
     std::shared_ptr<camera_capability_t> cmd_capability_;
     std::mutex mutex_;
