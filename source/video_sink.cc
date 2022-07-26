@@ -93,5 +93,11 @@ VideoSink::SetCameraCapabilty(std::vector<camera_info_t> camera_info)
 {
     return impl_->SetCameraCapabilty(camera_info);
 }
+
+void
+VideoSink::ResetCameraCapabilty()
+{
+    impl_->ResetCameraCapabilty();
+}
 }; // namespace client
 } // namespace vhal
