@@ -1,5 +1,7 @@
 #ifndef ANDROID_AUDIO_CORE_H
 #define ANDROID_AUDIO_CORE_H
+
+#include <cstdint>
 /**
  *
  * Copyright (c) 2021 Intel Corporation

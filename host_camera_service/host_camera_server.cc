@@ -388,18 +388,8 @@ int main(int argc, char** argv)
                                  }
                           }
                           buf_count++;
-			  gettimeofday(&tval_after, NULL);
-timersub(&tval_after, &tval_before, &tval_result);
-unsigned int sleep_time = (33 - (tval_result.tv_usec /1000));
-    std::chrono::duration<double, std::milli> elapsed = (std::chrono::duration<double, std::milli>)sleep_time;
-                          
-                          
-//this_thread::sleep_for(33ms);
 			  av_packet_unref(pkt);
                           av_new_packet(pkt, 0);
-
-//if(sleep_time > 1)
-this_thread::sleep_for(32ms);
                       }
 		      cout <<"camera thread exit "<<"\n";
                       pthread_cond_signal(&thread_running);
